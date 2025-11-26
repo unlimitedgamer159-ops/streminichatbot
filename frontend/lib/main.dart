@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
+
+// Screens
+import 'screens/home_screen.dart';
+import 'widgets/floating_chatbot.dart';
 
 // Global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -31,18 +37,49 @@ class MyApp extends StatelessWidget {
 }
 
 // Wrapper widget that manages overlay layers
-class AppWrapper extends ConsumerWidget {
+class AppWrapper extends ConsumerStatefulWidget {
   const AppWrapper({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppWrapper> createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends ConsumerState<AppWrapper> {
+  static const EventChannel _eventChannel = EventChannel('stremini.chat.overlay/events');
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid) {
+      _listenToOverlayEvents();
+    }
+  }
+
+  void _listenToOverlayEvents() {
+    _eventChannel.receiveBroadcastStream().listen((event) {
+      if (event is Map) {
+        final action = event['action'] as String?;
+        
+        if (action == 'open_floating_chat') {
+          // Show floating chatbot
+          ref.read(floatingChatbotProvider.notifier).show();
+        } else if (action == 'close_floating_chat') {
+          // Hide floating chatbot
+          ref.read(floatingChatbotProvider.notifier).hide();
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Stack(
       children: [
         // Main app content
-        HomeScreen(),
+        const HomeScreen(),
         
         // Floating chatbot overlay
-         FloatingChatbot(),
+        const FloatingChatbot(),
       ],
     );
   }
