@@ -39,10 +39,10 @@ class AppWrapper extends ConsumerWidget {
     return Stack(
       children: [
         // Main app content
-        const HomeScreen(),
+        HomeScreen(),
         
         // Floating chatbot overlay
-        const FloatingChatbot(),
+         FloatingChatbot(),
       ],
     );
   }
