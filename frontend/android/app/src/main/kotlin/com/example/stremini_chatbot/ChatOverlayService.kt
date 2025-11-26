@@ -3,8 +3,10 @@ package com.example.stremini_chatbot
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -20,6 +22,11 @@ import kotlin.math.sin
 import kotlin.math.abs
 
 class ChatOverlayService : Service(), View.OnTouchListener {
+
+    companion object {
+        const val ACTION_OPEN_FLOATING_CHAT = "com.example.stremini_chatbot.OPEN_FLOATING_CHAT"
+        const val ACTION_CLOSE_FLOATING_CHAT = "com.example.stremini_chatbot.CLOSE_FLOATING_CHAT"
+    }
 
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: View
@@ -48,6 +55,21 @@ class ChatOverlayService : Service(), View.OnTouchListener {
     private var lastCollapsedX = 0
     private var lastCollapsedY = 200
 
+    // Broadcast receiver for floating chat controls
+    private val chatControlReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                ACTION_OPEN_FLOATING_CHAT -> {
+                    // Notify Flutter to show floating chat
+                    // You can use EventChannel or MethodChannel here
+                }
+                ACTION_CLOSE_FLOATING_CHAT -> {
+                    // Notify Flutter to hide floating chat
+                }
+            }
+        }
+    }
+
     private fun dpToPx(dp: Float): Int {
         return (dp * resources.displayMetrics.density).toInt()
     }
@@ -59,19 +81,29 @@ class ChatOverlayService : Service(), View.OnTouchListener {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         startForegroundService()
         setupOverlay()
+        
+        // Register broadcast receiver
+        val filter = IntentFilter().apply {
+            addAction(ACTION_OPEN_FLOATING_CHAT)
+            addAction(ACTION_CLOSE_FLOATING_CHAT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(chatControlReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(chatControlReceiver, filter)
+        }
     }
 
     private fun setupOverlay() {
         overlayView = LayoutInflater.from(this).inflate(R.layout.chat_bubble_layout, null)
         bubbleIcon = overlayView.findViewById(R.id.bubble_icon)
         
-        // Get references to menu items
+        // Get references to menu items (removed scanner button)
         menuItems = listOf(
             overlayView.findViewById(R.id.btn_refresh),
             overlayView.findViewById(R.id.btn_settings),
             overlayView.findViewById(R.id.btn_ai),
-            overlayView.findViewById(R.id.btn_keyboard),
-            overlayView.findViewById(R.id.btn_security)
+            overlayView.findViewById(R.id.btn_keyboard)
         )
 
         val typeParam = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,7 +128,6 @@ class ChatOverlayService : Service(), View.OnTouchListener {
         
         // Set click listeners for menu items
         menuItems[2].setOnClickListener { handleAIChat() }       // AI Chat
-        menuItems[4].setOnClickListener { handleScreenScanner() } // Scanner
         menuItems[3].setOnClickListener { handleVoiceCommand() }  // Voice
         menuItems[1].setOnClickListener { handleSettings() }      // Settings
         menuItems[0].setOnClickListener { handleRefresh() }       // Refresh
@@ -109,28 +140,12 @@ class ChatOverlayService : Service(), View.OnTouchListener {
         
         if (isFeatureActive(menuItems[2].id)) {
             // Open floating mini chatbot
-            val intent = Intent("com.example.stremini_chatbot.OPEN_FLOATING_CHAT")
+            val intent = Intent(ACTION_OPEN_FLOATING_CHAT)
             sendBroadcast(intent)
         } else {
             // Close floating chatbot
-            val intent = Intent("com.example.stremini_chatbot.CLOSE_FLOATING_CHAT")
+            val intent = Intent(ACTION_CLOSE_FLOATING_CHAT)
             sendBroadcast(intent)
-        }
-    }
-
-    private fun handleScreenScanner() {
-        toggleFeature(menuItems[4].id)
-        
-        if (isFeatureActive(menuItems[4].id)) {
-            // Start scanning
-            val intent = Intent(this, ScreenScannerService::class.java)
-            intent.action = ScreenScannerService.ACTION_START_SCAN
-            startService(intent)
-        } else {
-            // Stop scanning
-            val intent = Intent(this, ScreenScannerService::class.java)
-            intent.action = ScreenScannerService.ACTION_STOP_SCAN
-            startService(intent)
         }
     }
 
@@ -146,6 +161,10 @@ class ChatOverlayService : Service(), View.OnTouchListener {
         // Deactivate all features
         activeFeatures.clear()
         updateMenuItemsColor()
+        
+        // Close floating chat if open
+        val intent = Intent(ACTION_CLOSE_FLOATING_CHAT)
+        sendBroadcast(intent)
     }
 
     private fun toggleFeature(featureId: Int) {
@@ -170,7 +189,6 @@ class ChatOverlayService : Service(), View.OnTouchListener {
                 // Feature is inactive - default color
                 when(item.id) {
                     R.id.btn_ai -> item.setColorFilter(android.graphics.Color.parseColor("#23A6E2"))
-                    R.id.btn_security -> item.setColorFilter(android.graphics.Color.parseColor("#AA75F4"))
                     R.id.btn_keyboard -> item.setColorFilter(android.graphics.Color.parseColor("#0066FF"))
                     else -> item.setColorFilter(android.graphics.Color.parseColor("#23A6E2"))
                 }
@@ -339,6 +357,7 @@ class ChatOverlayService : Service(), View.OnTouchListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterReceiver(chatControlReceiver)
         if (::overlayView.isInitialized) windowManager.removeView(overlayView)
     }
 }
