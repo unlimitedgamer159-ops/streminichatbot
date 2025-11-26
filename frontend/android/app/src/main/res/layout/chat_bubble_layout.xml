@@ -32,20 +32,6 @@
         android:tint="#23A6E2"
         android:visibility="gone"/>
 
-    <!-- Screen Scanner Button -->
-    <ImageView
-        android:id="@+id/btn_security"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
-        android:background="@drawable/circle_bg_purple"
-        android:src="@android:drawable/ic_secure"
-        android:padding="16dp"
-        android:contentDescription="Screen Scanner"
-        android:layout_gravity="center"
-        android:elevation="8dp"
-        android:tint="#AA75F4"
-        android:visibility="gone"/>
-
     <!-- Voice Commands Button -->
     <ImageView
         android:id="@+id/btn_keyboard"
