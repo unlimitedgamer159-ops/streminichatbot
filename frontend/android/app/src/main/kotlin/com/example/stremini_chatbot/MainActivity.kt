@@ -1,23 +1,41 @@
 package com.example.stremini_chatbot
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.content.Context
-import android.text.TextUtils
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val channelName = "stremini.chat.overlay"
-    private val scannerChannelName = "stremini.screen.scanner"
+    private val eventChannelName = "stremini.chat.overlay/events"
+    
+    private var eventSink: EventChannel.EventSink? = null
+
+    // Broadcast receiver for floating chat events
+    private val chatEventReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                ChatOverlayService.ACTION_OPEN_FLOATING_CHAT -> {
+                    eventSink?.success(mapOf("action" to "open_floating_chat"))
+                }
+                ChatOverlayService.ACTION_CLOSE_FLOATING_CHAT -> {
+                    eventSink?.success(mapOf("action" to "close_floating_chat"))
+                }
+            }
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        // Overlay channel
+        // Method channel for overlay controls
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasOverlayPermission" -> {
@@ -54,58 +72,40 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Scanner channel
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, scannerChannelName).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "hasAccessibilityPermission" -> {
-                    result.success(isAccessibilityServiceEnabled())
+        // Event channel for floating chat events
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventChannelName).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    eventSink = events
                 }
-                "requestAccessibilityPermission" -> {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                    result.success(true)
+
+                override fun onCancel(arguments: Any?) {
+                    eventSink = null
                 }
-                "startScanning" -> {
-                    if (isAccessibilityServiceEnabled()) {
-                        val intent = Intent(this, ScreenScannerService::class.java)
-                        intent.action = ScreenScannerService.ACTION_START_SCAN
-                        startService(intent)
-                        result.success(true)
-                    } else {
-                        result.error("NO_PERMISSION", "Accessibility permission not granted", null)
-                    }
-                }
-                "stopScanning" -> {
-                    val intent = Intent(this, ScreenScannerService::class.java)
-                    intent.action = ScreenScannerService.ACTION_STOP_SCAN
-                    startService(intent)
-                    result.success(true)
-                }
-                "isScanning" -> {
-                    result.success(ScreenScannerService.isScanning)
-                }
-                else -> result.notImplemented()
             }
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Register broadcast receiver
+        val filter = IntentFilter().apply {
+            addAction(ChatOverlayService.ACTION_OPEN_FLOATING_CHAT)
+            addAction(ChatOverlayService.ACTION_CLOSE_FLOATING_CHAT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(chatEventReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(chatEventReceiver, filter)
         }
     }
 
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val expectedComponentName = "$packageName/${ScreenScannerService::class.java.canonicalName}"
-        val enabledServicesSetting = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        val colonSplitter = TextUtils.SimpleStringSplitter(':')
-        colonSplitter.setString(enabledServicesSetting)
-
-        while (colonSplitter.hasNext()) {
-            val componentNameString = colonSplitter.next()
-            if (componentNameString.equals(expectedComponentName, ignoreCase = true)) {
-                return true
-            }
+    override fun onPause() {
+        super.onPause()
+        try {
+            unregisterReceiver(chatEventReceiver)
+        } catch (e: Exception) {
+            // Receiver not registered
         }
-        return false
     }
 }
