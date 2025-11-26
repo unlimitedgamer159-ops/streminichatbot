@@ -77,7 +77,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final bubbleActive = ref.watch(bubbleActiveProvider);
-    final scannerState = ref.watch(scannerStateProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -142,7 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Your intelligent assistant for chat, security, and screen analysis',
+                    'Your intelligent assistant for chat and productivity',
                     style: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 14,
@@ -170,40 +169,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _requestOverlayPermission();
                 }
               },
-            ),
-
-            const SizedBox(height: 16),
-
-            // Screen Scanner Control
-            _buildFeatureCard(
-              title: 'Screen Scanner',
-              description: 'Detect scams and analyze content',
-              icon: Icons.security,
-              iconColor: const Color(0xFFAA75F4),
-              trailing: Switch(
-                value: scannerState.isActive,
-                onChanged: (value) async {
-                  if (!scannerState.hasPermission) {
-                    await ref.read(scannerStateProvider.notifier).requestPermission();
-                  } else {
-                    await ref.read(scannerStateProvider.notifier).toggleScanning();
-                  }
-                },
-                activeColor: const Color(0xFFAA75F4),
-              ),
-              badge: !scannerState.hasPermission
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Permission Required',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
-                      ),
-                    )
-                  : null,
             ),
 
             const SizedBox(height: 32),
